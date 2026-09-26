@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ağ Trafiği Ölçüm ve Simülasyon Aracı</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #FAFAF6;
+    --ink: #16160F;
+    --ink-soft: #55564A;
+    --ink-faint: #9B9A88;
+    --grid: #E6E4D3;
+    --blue: #1D4E89;
+    --amber: #8A6A1D;
+    --red: #9C2B2B;
+    --font-mono: 'IBM Plex Mono', 'SF Mono', monospace;
+    --font-sans: 'IBM Plex Sans', system-ui, sans-serif;
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #FAFAF6;
+      --ink: #16160F;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); height: 100%; }
+  body {
+    margin: 0;
+    min-height: 100%;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-mono);
+    -webkit-font-smoothing: antialiased;
+  }
+  .page {
+    max-width: 840px;
+    margin: 0 auto;
+    padding: 32px 24px 70px;
+  }
+
+  /* Document header */
+  .doc-header-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--ink-soft);
+    letter-spacing: 0.01em;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+    gap: 6px 16px;
+  }
+  h1 {
+    font-family: var(--font-sans);
+    font-size: 24px;
+    font-weight: 600;
+    margin: 0 0 14px;
+    letter-spacing: -0.01em;
+    line-height: 1.3;
+  }
+  .doc-rule { border-top: 2px solid var(--ink); margin-bottom: 26px; }
+  .status-line {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 11px; color: var(--ink-soft);
+    margin-top: -14px; margin-bottom: 26px;
+  }
+  .status-mark { width: 8px; height: 8px; background: var(--ink); display: inline-block; }
+  .status-mark.paused { background: transparent; border: 1px solid var(--ink); }
+
+  /* Sections */
+  section { margin-bottom: 30px; }
+  .section-heading {
+    font-family: var(--font-mono);
+    font-weight: 600;
+    font-size: 13px;
+    margin: 0 0 10px;
+    display: flex; align-items: baseline; gap: 8px;
+  }
+  .section-heading .num { color: var(--ink-faint); }
+  .section-rule { border-bottom: 1px solid var(--ink); margin: 0 0 16px; }
+
+  p.prose {
+    font-family: var(--font-sans);
+    font-size: 14.5px;
+    line-height: 1.7;
+    color: var(--ink-soft);
+    max-width: 620px;
+    margin: 0;
+  }
+
+  /* Spec table */
+  table.spec-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+  }
+  .spec-table th, .spec-table td {
+    border: 1px solid var(--ink);
+    padding: 9px 12px;
+    text-align: left;
+    vertical-align: middle;
+  }
+  .spec-table thead th {
+    font-weight: 600;
+    border-bottom: 2px solid var(--ink);
+    background: var(--paper);
+  }
+  .spec-table td.unit-col, .spec-table td.range-col { color: var(--ink-soft); white-space: nowrap; }
+  .cell-slider { display: flex; align-items: center; gap: 12px; }
+  .cell-slider input[type="range"] { flex: 1; }
+  .cell-value {
+    min-width: 42px;
+    text-align: right;
+    font-weight: 600;
+  }
+  .field-caption { font-size: 10.5px; color: var(--ink-faint); }
+
+  input[type="range"] {
+    -webkit-appearance: none;
+    height: 2px;
+    background: var(--ink-faint);
+    outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 9px; height: 16px;
+    background: var(--ink);
+    cursor: pointer;
+    border-radius: 0;
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 9px; height: 16px;
+    background: var(--ink);
+    cursor: pointer;
+    border: none;
+    border-radius: 0;
+  }
+
+  /* Presets + buttons */
+  .presets { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+  .preset-btn {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    background: var(--paper);
+    border: 1px solid var(--ink);
+    color: var(--ink);
+    padding: 6px 11px;
+    cursor: pointer;
+    border-radius: 0;
+  }
+  .preset-btn.active { background: var(--ink); color: var(--paper); }
+
+  .btn-row { display: flex; gap: 8px; margin-top: 16px; }
+  .btn {
+    font-family: var(--font-mono);
+    font-weight: 600;
+    font-size: 12px;
+    padding: 9px 16px;
+    border: 1px solid var(--ink);
+    background: var(--paper);
+    color: var(--ink);
+    cursor: pointer;
+    border-radius: 0;
+  }
+  .btn.primary { background: var(--ink); color: var(--paper); }
+  .btn:active { transform: translateY(1px); }
+
+  /* Figures */
+  .figure-frame { border: 1px solid var(--ink); background: var(--paper); }
+  canvas#pipe { display: block; width: 100%; height: 200px; background: var(--paper); }
+  canvas#chart { display: block; width: 100%; height: 150px; background: var(--paper); }
+  .figure-caption {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-style: italic;
+    color: var(--ink-soft);
+    text-align: center;
+    margin-top: 7px;
+  }
+
+  /* Result table emphasis */
+  .result-loss { font-weight: 700; }
+  .result-loss.warn { color: var(--amber); }
+  .result-loss.bad { color: var(--red); }
+
+  .notes {
+    border-top: 1px solid var(--ink);
+    padding-top: 16px;
+    margin-top: 36px;
+  }
+  .notes p.prose { font-size: 13px; }
+  .notes b { color: var(--ink); font-weight: 600; }
+
+  @media (max-width: 560px) {
+    .spec-table, .spec-table thead, .spec-table tbody, .spec-table tr, .spec-table th, .spec-table td { display: block; width: 100%; }
+    .spec-table thead { display: none; }
+    .spec-table td { border-top: none; }
+    .spec-table tr { border: 1px solid var(--ink); margin-bottom: -1px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="doc-header-row">
+    <span>AG-SIM-01</span>
+    <span>Taslak Belge · v2</span>
+  </div>
+  <h1>Ağ Trafiği Ölçüm ve Simülasyon Aracı</h1>
+  <div class="doc-rule"></div>
+  <div class="status-line">
+    <span class="status-mark" id="statusDot"></span>
+    <span id="statusText">durum: çalışıyor</span>
+  </div>
+
+  <section>
+    <div class="section-heading"><span class="num">1.</span><span>Genel Bakış</span></div>
+    <div class="section-rule"></div>
+    <p class="prose">Bu araç, bir iletim kanalının bant genişliği, gecikme, jitter ve paket kaybı parametreleri değiştirildiğinde nasıl davrandığını gözlemlemek için kurgusal bir modelle çalışır. Aşağıdaki parametreleri değiştirerek farklı ağ koşullarını (fiber, mobil veri, zayıf sinyal vb.) canlı olarak karşılaştırabilirsin.</p>
+  </section>
+
+  <section>
+    <div class="section-heading"><span class="num">2.</span><span>Kontrol Parametreleri</span></div>
+    <div class="section-rule"></div>
+    <table class="spec-table">
+      <thead>
+        <tr><th>Parametre</th><th>Değer</th><th>Birim</th><th>Aralık</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Bant genişliği</td>
+          <td class="cell-slider"><input type="range" id="bw" min="1" max="1000" value="100" step="1"><span class="cell-value" id="vBw">100</span></td>
+          <td class="unit-col">Mbps</td>
+          <td class="range-col">1–1000</td>
+        </tr>
+        <tr>
+          <td>Gecikme (RTT/2)</td>
+          <td class="cell-slider"><input type="range" id="lat" min="0" max="400" value="20" step="1"><span class="cell-value" id="vLat">20</span></td>
+          <td class="unit-col">ms</td>
+          <td class="range-col">0–400</td>
+        </tr>
+        <tr>
+          <td>Jitter</td>
+          <td class="cell-slider"><input type="range" id="jit" min="0" max="100" value="4" step="1"><span class="cell-value" id="vJit">4</span></td>
+          <td class="unit-col">ms</td>
+          <td class="range-col">0–100</td>
+        </tr>
+        <tr>
+          <td>Paket kaybı</td>
+          <td class="cell-slider"><input type="range" id="loss" min="0" max="30" value="1" step="0.5"><span class="cell-value" id="vLoss">1.0</span></td>
+          <td class="unit-col">%</td>
+          <td class="range-col">0–30</td>
+        </tr>
+        <tr>
+          <td>Trafik yoğunluğu</td>
+          <td class="cell-slider"><input type="range" id="rate" min="1" max="10" value="4" step="1"><span class="cell-value" id="vRate">4</span></td>
+          <td class="unit-col">seviye</td>
+          <td class="range-col"><span class="field-caption" id="vRateWord">orta</span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="presets" id="presets"></div>
+    <div class="btn-row">
+      <button class="btn primary" id="toggleBtn">Duraklat</button>
+      <button class="btn" id="resetBtn">Sıfırla</button>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-heading"><span class="num">3.</span><span>Kanal Görselleştirmesi</span></div>
+    <div class="section-rule"></div>
+    <div class="figure-frame"><canvas id="pipe"></canvas></div>
+    <div class="figure-caption">Şekil 1 — Paketlerin gönderici (TX) ile alıcı (RX) arasındaki akışı</div>
+  </section>
+
+  <section>
+    <div class="section-heading"><span class="num">4.</span><span>Ölçüm Sonuçları</span></div>
+    <div class="section-rule"></div>
+    <table class="spec-table">
+      <thead>
+        <tr><th>Paket kaybı</th><th>Gönderilen</th><th>Teslim edildi</th><th>Ort. gecikme</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="result-loss" id="sLossWrap"><span id="sLoss">0.0</span>%</td>
+          <td id="sSent">0</td>
+          <td id="sDelivered">0</td>
+          <td id="sLatency">0 ms</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <div class="section-heading"><span class="num">5.</span><span>Verim Grafiği</span></div>
+    <div class="section-rule"></div>
+    <div class="figure-frame"><canvas id="chart"></canvas></div>
+    <div class="figure-caption">Şekil 2 — Zaman içinde iletilen ve kaybolan veri oranı (Mbps)</div>
+  </section>
+
+  <div class="notes">
+    <p class="prose"><b>Not:</b> mavi kare başarıyla iletilen bir paketi, sarı artan gecikmeyle ilerleyen bir paketi, kırmızı kaybolan bir paketi temsil eder. Tüm değerler gerçek zamanlı hesaplanan bir simülasyon modelinden üretilir; gerçek ağ trafiği ölçülmemektedir.</p>
+  </div>
+
+</div>
+
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+
+  const bwEl = $('bw'), latEl = $('lat'), jitEl = $('jit'), lossEl = $('loss'), rateEl = $('rate');
+  const vBw = $('vBw'), vLat = $('vLat'), vJit = $('vJit'), vLoss = $('vLoss'), vRate = $('vRate');
+  const vRateWord = $('vRateWord');
+  const pipeCanvas = $('pipe'), chartCanvas = $('chart');
+  const pctx = pipeCanvas.getContext('2d');
+  const cctx = chartCanvas.getContext('2d');
+  const statusDot = $('statusDot'), statusText = $('statusText');
+  const toggleBtn = $('toggleBtn'), resetBtn = $('resetBtn');
+  const sSent = $('sSent'), sDelivered = $('sDelivered'), sLoss = $('sLoss'), sLossWrap = $('sLossWrap'), sLatency = $('sLatency');
+
+  const rateLabels = {1:'çok düşük',2:'düşük',3:'düşük',4:'orta',5:'orta',6:'orta-yüksek',7:'yüksek',8:'yüksek',9:'çok yüksek',10:'aşırı'};
+
+  const presets = [
+    { name: 'Fiber (FTTH)', bw: 500, lat: 4, jit: 1, loss: 0.1, rate: 8 },
+    { name: '4G LTE', bw: 60, lat: 35, jit: 8, loss: 1, rate: 5 },
+    { name: '3G', bw: 6, lat: 120, jit: 25, loss: 3, rate: 3 },
+    { name: 'Uydu bağlantısı', bw: 25, lat: 320, jit: 15, loss: 2, rate: 4 },
+    { name: 'Sıkışık Wi-Fi', bw: 20, lat: 45, jit: 40, loss: 8, rate: 6 },
+    { name: 'Zayıf sinyal', bw: 3, lat: 180, jit: 60, loss: 15, rate: 3 },
+  ];
+
+  const presetsWrap = $('presets');
+  let activePresetIdx = null;
+  presets.forEach((p, i) => {
+    const b = document.createElement('button');
+    b.className = 'preset-btn';
+    b.textContent = p.name;
+    b.addEventListener('click', () => applyPreset(i));
+    presetsWrap.appendChild(b);
+  });
+  function applyPreset(i) {
+    const p = presets[i];
+    bwEl.value = p.bw; latEl.value = p.lat; jitEl.value = p.jit; lossEl.value = p.loss; rateEl.value = p.rate;
+    activePresetIdx = i;
+    updateLabels();
+    [...presetsWrap.children].forEach((el, idx) => el.classList.toggle('active', idx === i));
+  }
+
+  function updateLabels() {
+    vBw.textContent = bwEl.value;
+    vLat.textContent = latEl.value;
+    vJit.textContent = jitEl.value;
+    vLoss.textContent = parseFloat(lossEl.value).toFixed(1);
+    vRate.textContent = rateEl.value;
+    vRateWord.textContent = rateLabels[rateEl.value];
+  }
+  [bwEl, latEl, jitEl, lossEl, rateEl].forEach(el => el.addEventListener('input', () => {
+    activePresetIdx = null;
+    [...presetsWrap.children].forEach(c => c.classList.remove('active'));
+    updateLabels();
+  }));
+  updateLabels();
+
+  // --- Simulation state ---
+  let running = true;
+  let packets = [];
+  let spawnAcc = 0;
+  let stats = { sent: 0, delivered: 0, dropped: 0, latSum: 0, latCount: 0 };
+  let throughputHistory = [];
+  const HISTORY_LEN = 90;
+
+  function resizeCanvases() {
+    const dpr = window.devicePixelRatio || 1;
+    [pipeCanvas, chartCanvas].forEach(c => {
+      const rect = c.getBoundingClientRect();
+      c.width = Math.max(1, rect.width * dpr);
+      c.height = Math.max(1, rect.height * dpr);
+    });
+  }
+  window.addEventListener('resize', resizeCanvases);
+  resizeCanvases();
+
+  toggleBtn.addEventListener('click', () => {
+    running = !running;
+    toggleBtn.textContent = running ? 'Duraklat' : 'Devam et';
+    statusDot.classList.toggle('paused', !running);
+    statusText.textContent = running ? 'durum: çalışıyor' : 'durum: duraklatıldı';
+  });
+  resetBtn.addEventListener('click', () => {
+    packets = [];
+    stats = { sent: 0, delivered: 0, dropped: 0, latSum: 0, latCount: 0 };
+    throughputHistory = [];
+    updateStatsUI();
+  });
+
+  function updateStatsUI() {
+    sSent.textContent = stats.sent;
+    sDelivered.textContent = stats.delivered;
+    const lossPct = stats.sent ? (stats.dropped / stats.sent * 100) : 0;
+    sLoss.textContent = lossPct.toFixed(1);
+    sLossWrap.className = 'result-loss ' + (lossPct > 10 ? 'bad' : lossPct > 3 ? 'warn' : '');
+    const avgLat = stats.latCount ? (stats.latSum / stats.latCount) : 0;
+    sLatency.textContent = Math.round(avgLat) + ' ms';
+  }
+
+  let lastT = performance.now();
+  let windowGood = 0, windowBad = 0, windowT = 0;
+
+  function tick(now) {
+    const dt = Math.min(50, now - lastT);
+    lastT = now;
+    requestAnimationFrame(tick);
+
+    if (running) {
+      const bw = parseFloat(bwEl.value);
+      const lat = parseFloat(latEl.value);
+      const jit = parseFloat(jitEl.value);
+      const lossPct = parseFloat(lossEl.value);
+      const rate = parseFloat(rateEl.value);
+
+      const spawnInterval = Math.max(18, 190 - rate * 17);
+      spawnAcc += dt;
+      while (spawnAcc > spawnInterval) {
+        spawnAcc -= spawnInterval;
+        const dropped = Math.random() * 100 < lossPct;
+        const jitterMs = (Math.random() * 2 - 1) * jit;
+        const travel = Math.max(120, lat * 2 + jitterMs);
+        const dropAt = dropped ? (0.25 + Math.random() * 0.5) : null;
+        packets.push({
+          p: 0,
+          speedPerMs: 1 / travel,
+          dropped,
+          dropAt,
+          lane: Math.random(),
+          bornAt: now,
+          latencyMs: lat + jitterMs,
+          size: 0.6 + Math.random() * 0.5,
+        });
+        stats.sent++;
+        if (!dropped) {
+          stats.latSum += Math.max(0, lat + jitterMs);
+          stats.latCount++;
+        }
+      }
+
+      const bytesPerGoodPacket = 0.012;
+      let goodThisFrame = 0, badThisFrame = 0;
+      for (let i = packets.length - 1; i >= 0; i--) {
+        const pk = packets[i];
+        pk.p += pk.speedPerMs * dt;
+        if (pk.dropped && pk.dropAt !== null && pk.p >= pk.dropAt && !pk.counted) {
+          pk.counted = true;
+          stats.dropped++;
+          badThisFrame += bytesPerGoodPacket;
+          updateStatsUI();
+        }
+        if (!pk.dropped && pk.p >= 1) {
+          stats.delivered++;
+          goodThisFrame += bytesPerGoodPacket;
+          packets.splice(i, 1);
+          updateStatsUI();
+          continue;
+        }
+        if (pk.dropped && pk.dropAt !== null && pk.p >= pk.dropAt + 0.04) {
+          packets.splice(i, 1);
+          continue;
+        }
+      }
+
+      windowGood += goodThisFrame;
+      windowBad += badThisFrame;
+      windowT += dt;
+      if (windowT >= 220) {
+        const scale = 1000 / windowT;
+        throughputHistory.push({ good: windowGood * scale * bw / 8, bad: windowBad * scale * bw / 8 });
+        if (throughputHistory.length > HISTORY_LEN) throughputHistory.shift();
+        windowGood = 0; windowBad = 0; windowT = 0;
+      }
+    }
+
+    drawPipe();
+    drawChart();
+  }
+
+  function drawPipe() {
+    const w = pipeCanvas.width, h = pipeCanvas.height;
+    const dpr = window.devicePixelRatio || 1;
+    pctx.clearRect(0, 0, w, h);
+    pctx.fillStyle = '#FAFAF6';
+    pctx.fillRect(0, 0, w, h);
+
+    const marginX = 60 * dpr;
+    const midY = h / 2;
+    const laneSpread = h * 0.30;
+
+    pctx.strokeStyle = '#16160F';
+    pctx.lineWidth = 1 * dpr;
+    pctx.beginPath();
+    pctx.moveTo(marginX, midY);
+    pctx.lineTo(w - marginX, midY);
+    pctx.stroke();
+
+    pctx.strokeStyle = '#16160F';
+    pctx.lineWidth = 1 * dpr;
+    pctx.strokeRect(marginX - 22 * dpr, midY - 16 * dpr, 22 * dpr, 32 * dpr);
+    pctx.strokeRect(w - marginX, midY - 16 * dpr, 22 * dpr, 32 * dpr);
+    pctx.fillStyle = '#16160F';
+    pctx.font = (11 * dpr) + "px 'IBM Plex Mono', monospace";
+    pctx.textAlign = 'center';
+    pctx.textBaseline = 'middle';
+    pctx.fillText('TX', marginX - 11 * dpr, midY);
+    pctx.fillText('RX', w - marginX + 11 * dpr, midY);
+
+    for (const pk of packets) {
+      const x = marginX + (w - 2 * marginX) * Math.min(pk.p, 1);
+      const y = midY + (pk.lane - 0.5) * laneSpread;
+      let color = '#1D4E89';
+      if (pk.dropped) {
+        color = (pk.dropAt !== null && pk.p >= pk.dropAt) ? '#9C2B2B' : '#8A6A1D';
+      } else if (pk.latencyMs > 100) {
+        color = '#8A6A1D';
+      }
+      const s = pk.size * 7 * dpr;
+      pctx.fillStyle = color;
+      pctx.globalAlpha = (pk.dropped && pk.dropAt !== null && pk.p >= pk.dropAt) ? Math.max(0, 1 - (pk.p - pk.dropAt) / 0.04) : 1;
+      pctx.fillRect(x - s / 2, y - s / 2, s, s);
+      pctx.globalAlpha = 1;
+    }
+  }
+
+  function drawChart() {
+    const w = chartCanvas.width, h = chartCanvas.height;
+    const dpr = window.devicePixelRatio || 1;
+    cctx.clearRect(0, 0, w, h);
+    cctx.fillStyle = '#FAFAF6';
+    cctx.fillRect(0, 0, w, h);
+
+    const leftPad = 34 * dpr;
+    const bottomPad = 18 * dpr;
+    const plotW = w - leftPad - 6 * dpr;
+    const plotH = h - bottomPad;
+
+    // graph-paper grid
+    cctx.strokeStyle = '#E6E4D3';
+    cctx.lineWidth = 1;
+    for (let gx = leftPad; gx <= w; gx += 20 * dpr) {
+      cctx.beginPath(); cctx.moveTo(gx, 0); cctx.lineTo(gx, plotH); cctx.stroke();
+    }
+    for (let gy = 0; gy <= plotH; gy += 18 * dpr) {
+      cctx.beginPath(); cctx.moveTo(leftPad, gy); cctx.lineTo(w, gy); cctx.stroke();
+    }
+
+    const maxVal = throughputHistory.length
+      ? Math.max(1, ...throughputHistory.map(d => d.good + d.bad)) * 1.15
+      : 10;
+
+    cctx.strokeStyle = '#16160F';
+    cctx.lineWidth = 1;
+    cctx.fillStyle = '#55564A';
+    cctx.font = (10 * dpr) + "px 'IBM Plex Mono', monospace";
+    cctx.textAlign = 'right';
+    cctx.textBaseline = 'middle';
+    for (let i = 0; i <= 3; i++) {
+      const y = (plotH / 3) * i;
+      cctx.beginPath(); cctx.moveTo(leftPad, y); cctx.lineTo(w, y); cctx.stroke();
+      const val = maxVal * (1 - i / 3);
+      cctx.fillText(val.toFixed(0), leftPad - 6 * dpr, Math.min(Math.max(y, 7 * dpr), plotH - 2 * dpr));
+    }
+    cctx.beginPath(); cctx.moveTo(leftPad, 0); cctx.lineTo(leftPad, plotH); cctx.stroke();
+    cctx.beginPath(); cctx.moveTo(leftPad, plotH); cctx.lineTo(w, plotH); cctx.stroke();
+
+    const totalSeconds = Math.round(HISTORY_LEN * 0.22);
+    cctx.textAlign = 'left';
+    cctx.textBaseline = 'alphabetic';
+    cctx.fillText('-' + totalSeconds + 's', leftPad + 2 * dpr, h - 4 * dpr);
+    cctx.textAlign = 'center';
+    cctx.fillText('-' + Math.round(totalSeconds / 2) + 's', leftPad + plotW / 2, h - 4 * dpr);
+    cctx.textAlign = 'right';
+    cctx.fillText('şimdi', w - 2 * dpr, h - 4 * dpr);
+
+    if (throughputHistory.length < 2) return;
+    const stepX = plotW / (HISTORY_LEN - 1);
+    const startIdx = HISTORY_LEN - throughputHistory.length;
+
+    function pathFor(stacked) {
+      cctx.beginPath();
+      throughputHistory.forEach((d, i) => {
+        const x = leftPad + (startIdx + i) * stepX;
+        const val = stacked ? d.good + d.bad : d.good;
+        const y = plotH - (val / maxVal) * plotH;
+        if (i === 0) cctx.moveTo(x, y); else cctx.lineTo(x, y);
+      });
+    }
+
+    cctx.lineWidth = 1.5 * dpr;
+    pathFor(true);
+    cctx.strokeStyle = '#9C2B2B';
+    cctx.stroke();
+
+    pathFor(false);
+    cctx.strokeStyle = '#1D4E89';
+    cctx.lineWidth = 1.5 * dpr;
+    cctx.stroke();
+  }
+
+  requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>
