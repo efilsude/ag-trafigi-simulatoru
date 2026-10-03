@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ağ Trafiği Ölçüm ve Simülasyon Aracı</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="page">
+
+  <div class="doc-header-row">
+    <span>AG-SIM-01</span>
+    <span>Taslak Belge · v3</span>
+  </div>
+  <h1>Ağ Trafiği Ölçüm ve Simülasyon Aracı</h1>
+  <div class="doc-rule"></div>
+  <div class="status-line">
+    <span class="status-mark" id="statusDot"></span>
+    <span id="statusText">durum: çalışıyor</span>
+  </div>
+
+  <section>
+    <div class="section-heading"><span class="num">1.</span><span>Genel Bakış</span></div>
+    <div class="section-rule"></div>
+    <p class="prose">Bu araç, bir iletim kanalının bant genişliği, gecikme, jitter ve paket kaybı parametreleri değiştirildiğinde nasıl davrandığını gözlemlemek için kurgusal bir modelle çalışır. Gönderici artık sabit bir hızda değil, gerçek TCP bağlantıları gibi bir <b>tıkanıklık kontrolü algoritmasıyla</b> kendi gönderim hızını belirliyor.</p>
+  </section>
+
+  <section>
+    <div class="section-heading"><span class="num">2.</span><span>Kanal Parametreleri</span></div>
+    <div class="section-rule"></div>
+    <table class="spec-table">
+      <thead><tr><th>Parametre</th><th>Değer</th><th>Birim</th><th>Aralık</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Bant genişliği</td>
+          <td class="cell-slider"><input type="range" id="bw" min="1" max="1000" value="100" step="1"><span class="cell-value" id="vBw">100</span></td>
+          <td class="unit-col">Mbps</td>
+          <td class="range-col">1–1000</td>
+        </tr>
+        <tr>
+          <td>Gecikme (RTT/2)</td>
+          <td class="cell-slider"><input type="range" id="lat" min="0" max="400" value="20" step="1"><span class="cell-value" id="vLat">20</span></td>
+          <td class="unit-col">ms</td>
+          <td class="range-col">0–400</td>
+        </tr>
+        <tr>
+          <td>Jitter</td>
+          <td class="cell-slider"><input type="range" id="jit" min="0" max="100" value="4" step="1"><span class="cell-value" id="vJit">4</span></td>
+          <td class="unit-col">ms</td>
+          <td class="range-col">0–100</td>
+        </tr>
+        <tr>
+          <td>Fiziksel paket kaybı</td>
+          <td class="cell-slider"><input type="range" id="loss" min="0" max="30" value="1" step="0.5"><span class="cell-value" id="vLoss">1.0</span></td>
+          <td class="unit-col">%</td>
+          <td class="range-col">0–30</td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="prose" style="margin-top:10px; font-size:12.5px;">Not: "trafik yoğunluğu" artık elle ayarlanmıyor — gönderim hızı, aşağıdaki tıkanıklık kontrolü algoritması tarafından otomatik belirleniyor.</p>
+
+    <div class="presets" id="presets"></div>
+    <div class="btn-row">
+      <button class="btn primary" id="toggleBtn">Duraklat</button>
+      <button class="btn" id="resetBtn">Sıfırla</button>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-heading"><span class="num">3.</span><span>TCP Tıkanıklık Kontrolü</span></div>
+    <div class="section-rule"></div>
+    <p class="prose">Gerçek TCP bağlantıları gönderim hızını elle ayarlamaz. Bunun yerine bir <b>tıkanıklık penceresi</b> (congestion window, cwnd) ile kendini yönetir: bağlantı az paketle başlar ve her turda ikiye katlanır (<b>yavaş başlangıç</b>). Bir paket kaybı yaşandığında pencere aniden küçültülür ve büyüme doğrusala döner (<b>tıkanıklık önleme</b>). Bu döngü, aşağıdaki "testere dişi" grafiğini oluşturur.</p>
+
+    <div style="margin-top:14px;" class="phase-badge" id="phaseBadge">YAVAŞ BAŞLANGIÇ</div>
+
+    <table class="spec-table">
+      <thead><tr><th>cwnd</th><th>ssthresh</th><th>Arabellek kapasitesi</th><th>Tur sayısı</th></tr></thead>
+      <tbody>
+        <tr>
+          <td id="cwndVal">1 paket</td>
+          <td id="ssthreshVal">∞</td>
+          <td id="bufferVal">10 paket</td>
+          <td id="roundVal">0</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="figure-frame" style="margin-top:14px;"><canvas id="cwndChart"></canvas></div>
+    <div class="figure-caption">Şekil 1 — Tıkanıklık penceresinin (cwnd) tur başına değişimi; kesikli çizgi ssthresh eşiğidir</div>
+  </section>
+
+  <section>
+    <div class="section-heading"><span class="num">4.</span><span>Kanal Görselleştirmesi</span></div>
+    <div class="section-rule"></div>
+    <div class="figure-frame"><canvas id="pipe"></canvas></div>
+    <div class="figure-caption">Şekil 2 — Paketlerin gönderici (TX) ile alıcı (RX) arasındaki akışı</div>
+  </section>
+
+  <section>
+    <div class="section-heading"><span class="num">5.</span><span>Ölçüm Sonuçları</span></div>
+    <div class="section-rule"></div>
+    <table class="spec-table">
+      <thead><tr><th>Fiziksel kayıp</th><th>Tıkanıklık kaybı</th><th>Gönderilen</th><th>Teslim edildi</th><th>Ort. gecikme</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="result-loss" id="sPhysWrap"><span id="sPhys">0.0</span>%</td>
+          <td class="result-loss" id="sCongWrap"><span id="sCong">0.0</span>%</td>
+          <td id="sSent">0</td>
+          <td id="sDelivered">0</td>
+          <td id="sLatency">0 ms</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <div class="section-heading"><span class="num">6.</span><span>Verim Grafiği</span></div>
+    <div class="section-rule"></div>
+    <div class="figure-frame"><canvas id="chart"></canvas></div>
+    <div class="figure-caption">Şekil 3 — Zaman içinde iletilen ve kaybolan veri oranı (Mbps)</div>
+  </section>
+
+  <section>
+    <div class="section-heading"><span class="num">7.</span><span>Gerçek Ölçümle Kalibrasyon</span></div>
+    <div class="section-rule"></div>
+    <p class="prose">Kendi internet bağlantını ölç, sonuçları aşağıya gir. Simülatör, kanal parametrelerini girdiğin gerçek değerlere göre ayarlayacak; böylece modelin tahminini kendi gerçek bağlantınla karşılaştırabilirsin.</p>
+
+    <table class="spec-table" style="margin-top:14px;">
+      <thead><tr><th>Ölçüm</th><th>Değer</th><th>Nasıl ölçülür</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Gecikme (ping)</td>
+          <td><input type="number" id="realLat" class="real-input" placeholder="ör. 24" min="0" step="0.1"> ms</td>
+          <td class="unit-col"><code>ping 8.8.8.8</code></td>
+        </tr>
+        <tr>
+          <td>İndirme hızı</td>
+          <td><input type="number" id="realBw" class="real-input" placeholder="ör. 85" min="0" step="0.1"> Mbps</td>
+          <td class="unit-col">speedtest.net</td>
+        </tr>
+        <tr>
+          <td>Fiziksel paket kaybı</td>
+          <td><input type="number" id="realLoss" class="real-input" placeholder="ör. 0" min="0" max="100" step="0.1"> %</td>
+          <td class="unit-col"><code>ping -n 50 8.8.8.8</code></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="btn-row">
+      <button class="btn primary" id="applyRealBtn">Simülatörü bu değerlere göre ayarla</button>
+    </div>
+
+    <table class="spec-table" id="compareTable" style="margin-top:16px; display:none;">
+      <thead><tr><th></th><th>Girdiğin gerçek ölçüm</th><th>Simülasyonun o anki verimi</th></tr></thead>
+      <tbody>
+        <tr><td>Verim</td><td id="cmpReal">—</td><td id="cmpSim">—</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <div class="notes">
+    <p class="prose"><b>Not:</b> mavi kare başarıyla iletilen bir paketi, sarı artan gecikmeyle ilerleyen bir paketi, kırmızı kaybolan bir paketi temsil eder. Tıkanıklık kontrolü algoritması, TCP Reno'nun basitleştirilmiş bir (AIMD — toplamsal artış / çarpımsal azalış) modelidir; gerçek TCP'nin tam durum makinesini (zaman aşımı, üçlü yinelenen onay vb.) içermez.</p>
+    <ul>
+      <li>Arabellek dolduğunda düşen paketler <b>tıkanıklık kaybı</b> olarak sayılır ve kanalın başına yakın bir noktada düşer.</li>
+      <li>Fiziksel paket kaybı slider'ından kaynaklanan kayıplar kanal boyunca rastgele bir noktada düşer.</li>
+      <li>Her iki kayıp türü de TCP algoritmasını aynı şekilde tetikler — gerçek kablosuz ağlarda da TCP bu ikisini ayırt edemediği için fiziksel hatalar yanlışlıkla "tıkanıklık" sanılıp gereksiz yere yavaşlar.</li>
+    </ul>
+  </div>
+
+</div>
+
+<script src="simulation.js"></script>
+<script src="charts.js"></script>
+<script src="ui.js"></script>
+</body>
+</html>
